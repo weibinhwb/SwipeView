@@ -1,13 +1,16 @@
 package com.weibinhwb.customview;
 
+import android.animation.Animator;
+import android.animation.IntEvaluator;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.annotation.SuppressLint;
 import android.content.Context;
-import android.graphics.PixelFormat;
+import android.support.v7.widget.CardView;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.widget.ImageView;
 
 /**
@@ -17,9 +20,13 @@ import android.widget.ImageView;
 
 public class CustomView extends ViewGroup {
 
-    private ImageView mForegroundView;
-    private ImageView mBackgroundView;
-    private int mOriginLeftX, mOriginLeftY;
+    private CardView mForegroundView, mBackgroundView;
+    private int mCardToParentLeft = 20;
+    private int mCardToParentRight = 20;
+    private int mCardToParentTop = 20;
+    private int mCardToParentBottom = 20;
+    private int mCardToCardDelta = 20;
+    private boolean mIsReceiveTouchEvent = true;
     private static final String TAG = CustomView.class.getSimpleName();
 
     public CustomView(Context context) {
@@ -38,27 +45,37 @@ public class CustomView extends ViewGroup {
     }
 
     private void init() {
-        mForegroundView = new ImageView(getContext());
-        mBackgroundView = new ImageView(getContext());
-        LayoutParams params = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        mForegroundView.setLayoutParams(params);
-        mBackgroundView.setLayoutParams(params);
-        mForegroundView.setPadding(20, 20, 20, 20);
-        mBackgroundView.setPadding(30, 30, 10, 10);
-        mForegroundView.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image1));
-        mBackgroundView.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image2));
-        mForegroundView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        mBackgroundView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        mForegroundView = new CardView(getContext());
+        mBackgroundView = new CardView(getContext());
+        LayoutParams foregroundParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        LayoutParams backgroundParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        mForegroundView.setLayoutParams(foregroundParams);
+        mBackgroundView.setLayoutParams(backgroundParams);
+
+        LayoutParams ivParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        ImageView iv1 = new ImageView(getContext());
+        iv1.setLayoutParams(ivParams);
+        ImageView iv2 = new ImageView(getContext());
+        iv2.setLayoutParams(ivParams);
+
+        iv1.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image1));
+        iv2.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image2));
+        iv1.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        iv2.setScaleType(ImageView.ScaleType.CENTER_CROP);
+
+        mForegroundView.addView(iv1);
+        mBackgroundView.addView(iv2);
+
         addView(mBackgroundView);
         addView(mForegroundView);
     }
-
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         measureChildren(widthMeasureSpec, heightMeasureSpec);
         int widthSize = MeasureSpec.getSize(widthMeasureSpec);
+
         int heightSize = MeasureSpec.getSize(heightMeasureSpec);
         setMeasuredDimension(widthSize, heightSize);
     }
@@ -68,12 +85,16 @@ public class CustomView extends ViewGroup {
         final int childCount = getChildCount();
         for (int i = 0; i < childCount; i++) {
             View childView = getChildAt(i);
-            int width = childView.getMeasuredWidth();
-            int height = childView.getMeasuredHeight();
-            childView.layout(0, 0, width, height);
+            int ll = mCardToParentLeft;
+            int rr = childView.getMeasuredWidth() - mCardToParentRight;
+            int tt = mCardToParentTop;
+            int bb = childView.getMeasuredHeight() - mCardToParentBottom;
+            if (i == 1) {
+                childView.layout(ll, tt, rr, bb);
+            } else {
+                childView.layout(ll + mCardToCardDelta, tt + mCardToCardDelta, rr - mCardToCardDelta, bb + mCardToCardDelta);
+            }
         }
-        mOriginLeftX = 0;
-        mOriginLeftY = 0;
     }
 
     @Override
@@ -84,50 +105,48 @@ public class CustomView extends ViewGroup {
     //拦截点击事件
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        return true;
+        return mIsReceiveTouchEvent;
     }
 
     /*
      * return true 事件被处理了
      * */
 
-    private int mLastX, mLastY;
+    private int mLastX;
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int x = (int) event.getX();
         int y = (int) event.getY();
-        View view = isInArea(x, y);
+        View view = isInForegroundViewArea(x, y);
         if (view != null) {
             switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    break;
                 case MotionEvent.ACTION_MOVE:
-                    final int distanceX = x - mLastX;
-                    final int distanceY = y - mLastY;
+                    int distanceX = x - mLastX;
                     int l = view.getLeft() + distanceX;
-                    int t = view.getTop() + distanceY;
+                    int t = mCardToParentTop;
                     int r = view.getRight() + distanceX;
-                    int b = view.getBottom() + distanceY;
+                    int b = view.getMeasuredHeight() - mCardToParentBottom;
                     view.layout(l, t, r, b);
                     break;
                 case MotionEvent.ACTION_UP:
-                    int distanceToOriginX = view.getLeft() - mOriginLeftX;
-                    int distanceToOriginY = view.getTop() - mOriginLeftY;
-                    int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
-                    if (Math.abs(distanceToOriginX) > slop || Math.abs(distanceToOriginY) > slop) {
-                        renewState(view);
+                    int distanceToOriginX = view.getLeft();
+                    int slop = (getRight() - getLeft()) / 4;
+                    if (Math.abs(distanceToOriginX) > slop) {
+                        deleteViewAnimation(view, distanceToOriginX);
+                        enlargeViewAnimation(mBackgroundView);
+                    } else {
+                        regressViewAnimation(view);
                     }
                     break;
-
             }
             mLastX = x;
-            mLastY = y;
         }
-        return true;
+        return mIsReceiveTouchEvent;
     }
 
-    private View isInArea(float eventX, float eventY) {
+    private View isInForegroundViewArea(float eventX, float eventY) {
         int l1 = mForegroundView.getLeft() + mForegroundView.getPaddingLeft();
         int t1 = mForegroundView.getTop() + mForegroundView.getPaddingTop();
         int r1 = mForegroundView.getRight() - mForegroundView.getPaddingRight();
@@ -145,9 +164,95 @@ public class CustomView extends ViewGroup {
         removeAllViews();
         addView(view);
         addView(mBackgroundView);
-        mBackgroundView.setPadding(20, 20, 20, 20);
-        mForegroundView.setPadding(30, 30, 10, 10);
         mForegroundView = mBackgroundView;
-        mBackgroundView = (ImageView) view;
+        mBackgroundView = (CardView) view;
+        mIsReceiveTouchEvent = true;
+    }
+
+    private void deleteViewAnimation(final View view, int values) {
+        ObjectAnimator animator = new ObjectAnimator();
+        animator.setTarget(view);
+        animator.setPropertyName("translationX");
+        animator.setFloatValues(values * 5);
+        animator.setDuration(800);
+        animator.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+                mIsReceiveTouchEvent = false;
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setTranslationX(0);
+                renewState(view);
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+
+            }
+        });
+        animator.start();
+    }
+
+    private void regressViewAnimation(final View view) {
+        ObjectAnimator animator = new ObjectAnimator();
+        animator.setTarget(view);
+        animator.setPropertyName("translationX");
+        animator.setFloatValues(-view.getLeft() + mCardToParentLeft);
+        animator.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setLeft(mCardToParentLeft);
+                view.setTop(mCardToParentTop);
+                view.setRight(view.getMeasuredWidth() - mCardToParentRight);
+                view.setBottom(view.getMeasuredHeight() - mCardToParentBottom);
+                view.setTranslationX(0);
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+
+            }
+        });
+        animator.start();
+    }
+
+    private void enlargeViewAnimation(final View view) {
+        ValueAnimator animator = ValueAnimator.ofInt(1, 100);
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            private IntEvaluator mEvaluator = new IntEvaluator();
+            int ll = mCardToParentLeft;
+            int rr = view.getMeasuredWidth() - mCardToParentRight;
+            int tt = mCardToParentTop;
+            int bb = view.getMeasuredHeight() - mCardToParentBottom;
+
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                float fraction = animation.getAnimatedFraction();
+                int l = mEvaluator.evaluate(fraction, ll + mCardToCardDelta, ll);
+                int r = mEvaluator.evaluate(fraction, rr - mCardToCardDelta, rr);
+                int t = mEvaluator.evaluate(fraction, tt + mCardToCardDelta, tt);
+                int b = mEvaluator.evaluate(fraction, bb + mCardToCardDelta, bb);
+                view.layout(l, t, r, b);
+            }
+        });
+        animator.setStartDelay(200);
+        animator.start();
     }
 }
