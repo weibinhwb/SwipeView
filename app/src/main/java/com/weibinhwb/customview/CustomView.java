@@ -6,12 +6,15 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Color;
 import android.support.v7.widget.CardView;
 import android.util.AttributeSet;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
+import android.widget.TextView;
 
 /**
  * Created by weibin on 2019/3/5
@@ -21,6 +24,7 @@ import android.widget.ImageView;
 public class CustomView extends ViewGroup {
 
     private CardView mForegroundView, mBackgroundView;
+    private TextView mForegroundTv, mBackgroundTv;
     private int mCardToParentLeft = 20;
     private int mCardToParentRight = 20;
     private int mCardToParentTop = 20;
@@ -28,6 +32,11 @@ public class CustomView extends ViewGroup {
     private int mCardToCardDelta = 20;
     private boolean mIsReceiveTouchEvent = true;
     private static final String TAG = CustomView.class.getSimpleName();
+
+    private String[] mStrings = {"Android开发艺术探索", "Android第一行代码", "Android音视频开发", "Android设计模式", "Java编程思想"};
+    private int[] mColors = {Color.GREEN, Color.LTGRAY, Color.YELLOW, Color.GRAY, Color.CYAN};
+    private int mIndexOfString = 0;
+    private int mIndexOfColor = 0;
 
     public CustomView(Context context) {
         super(context);
@@ -47,28 +56,28 @@ public class CustomView extends ViewGroup {
     private void init() {
         mForegroundView = new CardView(getContext());
         mBackgroundView = new CardView(getContext());
-        LayoutParams foregroundParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        LayoutParams backgroundParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        mForegroundView.setLayoutParams(foregroundParams);
-        mBackgroundView.setLayoutParams(backgroundParams);
-
-        LayoutParams ivParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        ImageView iv1 = new ImageView(getContext());
-        iv1.setLayoutParams(ivParams);
-        ImageView iv2 = new ImageView(getContext());
-        iv2.setLayoutParams(ivParams);
-
-        iv1.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image1));
-        iv2.setImageDrawable(getContext().getResources().getDrawable(R.drawable.image2));
-        iv1.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        iv2.setScaleType(ImageView.ScaleType.CENTER_CROP);
-
-        mForegroundView.addView(iv1);
-        mBackgroundView.addView(iv2);
-
+        mForegroundTv = new TextView(getContext());
+        mBackgroundTv = new TextView(getContext());
+        LayoutParams params = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        mForegroundView.setLayoutParams(params);
+        mBackgroundView.setLayoutParams(params);
+        mForegroundTv.setLayoutParams(params);
+        mBackgroundTv.setLayoutParams(params);
+        //设置TextView内容
+        mForegroundTv.setText(mStrings[mIndexOfString++ % mStrings.length]);
+        mForegroundTv.setBackgroundColor(mColors[mIndexOfColor++ % mColors.length]);
+        mBackgroundTv.setText(mStrings[mIndexOfString++ % mStrings.length]);
+        mBackgroundTv.setBackgroundColor(mColors[mIndexOfColor++ % mColors.length]);
+        mForegroundTv.setGravity(Gravity.CENTER);
+        mBackgroundTv.setGravity(Gravity.CENTER);
+        mForegroundTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        mBackgroundTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        mForegroundView.addView(mForegroundTv);
+        mBackgroundView.addView(mBackgroundTv);
         addView(mBackgroundView);
         addView(mForegroundView);
     }
+
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -102,15 +111,12 @@ public class CustomView extends ViewGroup {
         return super.dispatchTouchEvent(ev);
     }
 
-    //拦截点击事件
+
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         return mIsReceiveTouchEvent;
     }
 
-    /*
-     * return true 事件被处理了
-     * */
 
     private int mLastX;
 
@@ -131,14 +137,19 @@ public class CustomView extends ViewGroup {
                     view.layout(l, t, r, b);
                     break;
                 case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
                     int distanceToOriginX = view.getLeft();
-                    int slop = (getRight() - getLeft()) / 4;
+                    int slop = (getRight() - getLeft()) / 5;
+                    view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
                     if (Math.abs(distanceToOriginX) > slop) {
                         deleteViewAnimation(view, distanceToOriginX);
                         enlargeViewAnimation(mBackgroundView);
                     } else {
                         regressViewAnimation(view);
                     }
+                    view.setLayerType(View.LAYER_TYPE_NONE, null);
+                    break;
+                default:
                     break;
             }
             mLastX = x;
@@ -157,15 +168,17 @@ public class CustomView extends ViewGroup {
         return null;
     }
 
-    /*
-     * 需要更新布局、更新内容数据
-     * */
     private void renewState(View view) {
         removeAllViews();
         addView(view);
         addView(mBackgroundView);
         mForegroundView = mBackgroundView;
         mBackgroundView = (CardView) view;
+        TextView textView = mBackgroundTv;
+        mBackgroundTv = mForegroundTv;
+        mForegroundTv = textView;
+        mBackgroundTv.setText(mStrings[mIndexOfString++ % mStrings.length]);
+        mBackgroundTv.setBackgroundColor(mColors[mIndexOfColor++ % mColors.length]);
         mIsReceiveTouchEvent = true;
     }
 
@@ -174,7 +187,7 @@ public class CustomView extends ViewGroup {
         animator.setTarget(view);
         animator.setPropertyName("translationX");
         animator.setFloatValues(values * 5);
-        animator.setDuration(800);
+        animator.setDuration(500);
         animator.addListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animation) {
@@ -208,7 +221,7 @@ public class CustomView extends ViewGroup {
         animator.addListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animation) {
-
+                mIsReceiveTouchEvent = false;
             }
 
             @Override
@@ -218,6 +231,7 @@ public class CustomView extends ViewGroup {
                 view.setRight(view.getMeasuredWidth() - mCardToParentRight);
                 view.setBottom(view.getMeasuredHeight() - mCardToParentBottom);
                 view.setTranslationX(0);
+                mIsReceiveTouchEvent = true;
             }
 
             @Override
